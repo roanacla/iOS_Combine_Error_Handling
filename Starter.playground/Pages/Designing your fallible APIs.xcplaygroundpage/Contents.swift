@@ -4,7 +4,86 @@ import Combine
 
 var subscriptions = Set<AnyCancellable>()
 //: ## Designing your fallible APIs
-<#Add your code here#>
+example(of: "Joke API") {
+  class DadJokes {
+    // 1
+    struct Joke: Codable {
+      let id: String
+      let joke: String
+    }
+    
+    enum Error: Swift.Error, CustomStringConvertible {
+      // 1
+      case network
+      case jokeDoesntExist(id: String)
+      case parsing
+      case unknown
+      
+      // 2
+      var description: String {
+        switch self {
+        case .network:
+          return "Request to API Server failed"
+        case .parsing:
+          return "Failed parsing response from server"
+        case .jokeDoesntExist(let id):
+          return "Joke with ID \(id) doesn't exist"
+        case .unknown:
+          return "An unknown error occurred"
+        }
+      }
+    }
+
+    // 2
+    func getJoke(id: String) -> AnyPublisher<Joke, Error> {
+        guard id.rangeOfCharacter(from: .letters) != nil else { //make sure the joke contains at least one character
+          return Fail<Joke, Error>(error: .jokeDoesntExist(id: id))
+                  .eraseToAnyPublisher() //Throwing the error early prevents to make a network call
+        }
+      let url = URL(string: "https://icanhazdadjoke.com/j/\(id)")!
+      var request = URLRequest(url: url)
+//      request.allHTTPHeaderFields = ["Accept": "application/json"]
+      
+      // 3
+      return URLSession.shared
+        .dataTaskPublisher(for: request)
+        .tryMap { data, _ -> Data in
+          // 6
+          guard let obj = try? JSONSerialization.jsonObject(with: data),
+                let dict = obj as? [String: Any],
+                dict["status"] as? Int == 404 else {
+            return data
+          }
+          
+          // 7
+          throw DadJokes.Error.jokeDoesntExist(id: id)
+        }
+        .decode(type: Joke.self, decoder: JSONDecoder())
+        .mapError { error -> DadJokes.Error in
+            switch error {
+            case is URLError:
+                return .network
+            case is DecodingError:
+                return .parsing
+            default:
+                return error as? DadJokes.Error ?? .unknown
+            }
+        }
+        .eraseToAnyPublisher()
+    }
+  }
+    
+    let api = DadJokes()
+    let jokeID = "9prWnjyImyd"
+    let badJokeID = "123456"
+
+    // 5
+    api
+      .getJoke(id: jokeID)
+      .sink(receiveCompletion: { print($0) },
+            receiveValue: { print("Got joke: \($0)") })
+      .store(in: &subscriptions)
+}
 //: [Next](@next)
 
 /// Copyright (c) 2019 Razeware LLC

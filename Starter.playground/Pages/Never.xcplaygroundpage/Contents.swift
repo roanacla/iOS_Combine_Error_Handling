@@ -3,7 +3,82 @@ import Combine
 
 var subscriptions = Set<AnyCancellable>()
 //: ## Never
-<#Add your code here#>
+example(of: "Never sink") {
+  Just("Hello") //Just always creates a failure of "NEVER"
+    .sink(receiveValue: { print($0) }) //When using just, you can sink(receiveValue:) without specifying receiveCompletion.
+    .store(in: &subscriptions)
+}
+
+//——— Example of: Never sink ———
+//Hello
+
+enum MyError: Error {
+    case ohNo
+}
+
+example(of: "setFailureType") {
+    Just("Hello")
+        .setFailureType(to: MyError.self) //Changes the dafualt error type to a custom Error Type. However JUST NEVER throws and error. So this line is dumb.
+    .sink(receiveCompletion: { completion in //In this example, you have to use sink(receiveCompletion: receiveValue:) due to the fact that an error has to be handled
+        switch completion {
+        case .failure(.ohNo):
+            print("Finish with Oh No!")
+        case .finished:
+            print("Finish succesfully")
+        }
+    }, receiveValue:{ value in
+        print("Got value: \(value)")
+    })
+    .store(in: &subscriptions)
+}
+
+//——— Example of: setFailureType ———
+//Got value: Hello
+//Finish succesfully
+
+example(of: "assign") {
+  // 1
+  class Person {
+    let id = UUID()
+    var name = "Unknown"
+  }
+
+  // 2
+  let person = Person()
+  print("1", person.name)
+
+  Just("Shai")
+//    .setFailureType(to: Error.self)//if this line is added, the .assign method won't be available.
+    .handleEvents( // 3
+      receiveCompletion: { _ in print("2", person.name) }
+    )
+    .assign(to: \.name, on: person) // 4
+    .store(in: &subscriptions)
+}
+
+//——— Example of: assign ———
+//1 Unknown
+//2 Shai
+
+example(of: "assertNoFailure") {
+  // 1
+  Just("Hello")
+    .setFailureType(to: MyError.self)
+    .tryMap { _ in throw MyError.ohNo } //Use this line to test assertNoFailure
+    .assertNoFailure() // 2 “Use assertNoFailure to crash with a fatalError if the publisher completes with a failure event. This turns the publisher's failure type back to Never.
+    .sink(receiveValue: { print("Got value: \($0) ")}) // 3
+    .store(in: &subscriptions)
+}
+
+//——— Example of: assertNoFailure ———
+//Got value: Hello
+//--- OR (uncommenting the line above ---
+
+//Playground execution failed:
+//
+//error: Execution was interrupted, reason: EXC_BAD_INSTRUCTION (code=EXC_I386_INVOP, subcode=0x0).
+//The process has been left at the point where it was interrupted, use "thread return -x" to return to the state before expression evaluation.
+
 //: [Next](@next)
 
 /// Copyright (c) 2019 Razeware LLC
