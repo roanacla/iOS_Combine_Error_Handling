@@ -52,7 +52,7 @@ example(of: "assign") {
     .handleEvents( // 3
       receiveCompletion: { _ in print("2", person.name) }
     )
-    .assign(to: \.name, on: person) // 4
+    .assign(to: \.name, on: person) // 4 If the publisher has an error type, the assign modifier is not availab.e
     .store(in: &subscriptions)
 }
 
@@ -64,7 +64,7 @@ example(of: "assertNoFailure") {
   // 1
   Just("Hello")
     .setFailureType(to: MyError.self)
-    .tryMap { _ in throw MyError.ohNo } //Use this line to test assertNoFailure
+//    .tryMap { _ in throw MyError.ohNo } //Use this line to test assertNoFailure
     .assertNoFailure() // 2 “Use assertNoFailure to crash with a fatalError if the publisher completes with a failure event. This turns the publisher's failure type back to Never.
     .sink(receiveValue: { print("Got value: \($0) ")}) // 3
     .store(in: &subscriptions)
